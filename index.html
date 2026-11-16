@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>¿Quién es? · Inteligencia Analítica</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕵️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+  /* ── Configuración visual: cambiá estos valores por los de la marca ── */
+  :root {
+    --ink: #15171c;
+    --ink-2: #1f2229;
+    --line: #2e323b;
+    --paper: #f3f1ea;
+    --muted: #a9acb3;
+    --blue: #5b8cff;
+    --orange: #ff8a3d;
+    --danger: #ff6b6b;
+    --display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    --text: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--ink);
+    color: var(--paper);
+    font: 400 16px/1.5 var(--text);
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    -webkit-font-smoothing: antialiased;
+  }
+  [hidden] { display: none !important; }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+
+  .vista { min-height: 100%; }
+
+  /* ── Pantalla de entrada ── */
+  .entrada {
+    min-height: 100vh; display: grid; place-items: center; padding: 24px;
+  }
+  .entrada form { width: min(440px, 100%); display: grid; gap: 16px; }
+  .marca { font: 700 clamp(48px, 12vw, 88px)/0.95 var(--display); letter-spacing: -0.02em; }
+  .entrada p { color: var(--muted); }
+  .campo {
+    width: 100%; padding: 14px 16px; border-radius: 10px;
+    background: var(--ink-2); border: 1px solid var(--line); font-size: 18px;
+  }
+  .campo::placeholder { color: #7d818a; }
+  .boton {
+    padding: 14px 20px; border-radius: 10px; border: 0; cursor: pointer;
+    background: var(--blue); color: #0d1424; font-weight: 600; font-size: 17px;
+  }
+  .boton:disabled { opacity: .45; cursor: not-allowed; }
+  .boton.secundario { background: transparent; border: 1px solid var(--line); color: var(--paper); }
+  .mensaje { min-height: 1.5em; color: var(--muted); }
+  .mensaje.error { color: var(--danger); }
+  .mensaje.ok { color: var(--paper); }
+
+  /* ── Vista del jugador ── */
+  .jugador { max-width: 1120px; margin: 0 auto; padding: 16px 20px 32px; display: grid; gap: 16px; }
+  .barra { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .barra .titulo { font: 700 22px/1 var(--display); }
+  .barra nav { display: flex; align-items: center; gap: 16px; color: var(--muted); font-size: 15px; }
+  .enlace { background: none; border: 0; padding: 0; color: var(--paper); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+  .pantalla {
+    position: relative; aspect-ratio: 16 / 9; width: 100%;
+    background: #0e1014; border-radius: 12px; overflow: hidden; border: 1px solid var(--line);
+    display: grid; place-items: center;
+  }
+  .pantalla img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .pantalla .espera { color: var(--muted); padding: 24px; text-align: center; }
+
+  .respuesta { display: grid; gap: 14px; }
+  .estado-pista { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .estado-pista h2 { font: 600 22px/1.2 var(--display); }
+  .puntos { display: flex; gap: 6px; }
+  .puntos span { width: 12px; height: 12px; border-radius: 50%; background: var(--line); }
+  .puntos span.paso { background: #5b5f69; }
+  .puntos span.actual { background: var(--orange); }
+  .practica { color: var(--orange); font-size: 15px; }
+  .fila { display: flex; gap: 10px; }
+  .fila .campo { flex: 1; }
+  @media (max-width: 560px) { .fila { flex-direction: column; } }
+
+  /* ── Ranking ── */
+  .ranking { max-width: 760px; margin: 0 auto; padding: 32px 20px 48px; display: grid; gap: 24px; }
+  .ranking h1 { font: 700 clamp(40px, 8vw, 72px)/1 var(--display); letter-spacing: -0.02em; }
+  .ranking .nota { color: var(--muted); }
+  .tabla { list-style: none; padding: 0; display: grid; gap: 4px; }
+  .tabla li {
+    display: grid; grid-template-columns: 3ch 1fr auto; align-items: baseline; gap: 16px;
+    padding: 14px 4px; border-bottom: 1px solid var(--line); font-size: 20px;
+  }
+  .tabla .pos { font: 700 22px/1 var(--display); color: var(--muted); text-align: right; }
+  .tabla .pts { font: 600 22px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .tabla li:nth-child(-n+3) .pos { color: var(--orange); }
+  .tabla li:nth-child(1) { font-size: 26px; }
+  .tabla li.yo { background: rgba(91, 140, 255, .12); border-radius: 8px; }
+  .tabla .vacio { color: var(--muted); grid-column: 1 / -1; }
+
+  /* ── Vista del presentador ── */
+  .presentador { position: fixed; inset: 0; background: #000; }
+  .presentador .pantalla { position: absolute; inset: 0; aspect-ratio: auto; border-radius: 0; border: 0; background: #000; }
+  .presentador .ranking { position: absolute; inset: 0; overflow: auto; max-width: none; background: var(--ink); padding: 6vh 10vw; }
+  .presentador .ranking .tabla li { font-size: clamp(20px, 2.4vw, 34px); }
+  .controles {
+    position: absolute; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 18px;
+    background: rgba(21, 23, 28, .92); border: 1px solid var(--line); border-radius: 14px;
+    transition: opacity .3s; max-width: calc(100vw - 24px); white-space: nowrap;
+  }
+  .controles.oculto { opacity: 0; pointer-events: none; }
+  .controles .info { font-size: 14px; line-height: 1.35; color: var(--muted); white-space: nowrap; margin-right: 6px; }
+  .controles .icono { padding: 10px 12px; font-size: 18px; line-height: 1; }
+  .controles .info b { color: var(--paper); font-weight: 600; }
+  .controles .boton { padding: 10px 16px; font-size: 15px; }
+  .pin { position: fixed; inset: 0; display: grid; place-items: center; background: var(--ink); padding: 24px; }
+  .pin form { width: min(380px, 100%); display: grid; gap: 14px; }
+  .pin h1 { font: 700 40px/1 var(--display); }
+
+  @media (prefers-reduced-motion: reduce) { .controles { transition: none; } }
+</style>
+</head>
+<body>
+
+<!-- Entrada: nombre del jugador -->
+<section id="v-entrada" class="vista entrada" hidden>
+  <form id="f-entrada">
+    <h1 class="marca">¿Quién es?</h1>
+    <p>Escribí tu nombre y apellido. Así vas a aparecer en el ranking.</p>
+    <label for="i-nombre" class="sr">Tu nombre</label>
+    <input id="i-nombre" class="campo" autocomplete="name" maxlength="40" placeholder="Nombre y apellido" required>
+    <button class="boton" type="submit">Entrar al juego</button>
+    <p id="m-entrada" class="mensaje" role="status"></p>
+  </form>
+</section>
+
+<!-- Jugador -->
+<section id="v-jugador" class="vista" hidden>
+  <div class="jugador">
+    <div class="barra">
+      <span class="titulo">¿Quién es?</span>
+      <nav><span id="t-yo"></span><button class="enlace" id="b-ver-ranking" type="button">Ver ranking</button></nav>
+    </div>
+    <div class="pantalla" id="pantalla-jugador"><p class="espera">Conectando…</p></div>
+    <form class="respuesta" id="f-respuesta">
+      <div class="estado-pista">
+        <h2 id="t-pista">Esperando que arranque el juego</h2>
+        <div class="puntos" id="puntos" aria-hidden="true"></div>
+        <span class="practica" id="t-practica" hidden>Ronda de práctica: no suma puntos</span>
+      </div>
+      <div class="fila">
+        <label for="i-respuesta" class="sr">Tu respuesta</label>
+        <input id="i-respuesta" class="campo" autocomplete="off" maxlength="60" placeholder="¿Quién es? Escribí su nombre" disabled>
+        <button class="boton" id="b-enviar" type="submit" disabled>Enviar respuesta</button>
+      </div>
+      <p id="m-respuesta" class="mensaje" role="status" aria-live="polite"></p>
+    </form>
+  </div>
+</section>
+
+<!-- Ranking -->
+<section id="v-ranking" class="vista" hidden>
+  <div class="ranking">
+    <div class="barra"><span class="titulo">¿Quién es?</span><button class="enlace" id="b-volver" type="button">Volver al juego</button></div>
+    <h1 id="t-ranking">Ranking</h1>
+    <p class="nota">Suman solo las rondas que ya se revelaron.</p>
+    <ol class="tabla" id="tabla"></ol>
+  </div>
+</section>
+
+<!-- Presentador -->
+<section id="v-presentador" class="presentador" hidden>
+  <div class="pantalla" id="pantalla-host"><p class="espera">Conectando…</p></div>
+  <div class="ranking" id="ranking-host" hidden>
+    <h1>Ranking final</h1>
+    <ol class="tabla" id="tabla-host"></ol>
+  </div>
+  <div class="controles" id="controles">
+    <span class="info" id="t-host">Cargando…</span>
+    <button class="boton secundario" id="b-atras" type="button" aria-label="Diapositiva anterior">Anterior</button>
+    <button class="boton" id="b-avanzar" type="button" aria-label="Diapositiva siguiente">Avanzar</button>
+    <button class="boton secundario icono" id="b-pantalla" type="button" aria-label="Pantalla completa (F)" title="Pantalla completa (F)">⛶</button>
+    <button class="boton secundario icono" id="b-reiniciar" type="button" aria-label="Reiniciar el juego" title="Reiniciar el juego">↺</button>
+  </div>
+  <div class="pin" id="pin" hidden>
+    <form id="f-pin">
+      <h1>Presentador</h1>
+      <p class="mensaje">Ingresá el PIN para manejar las diapositivas.</p>
+      <input id="i-pin" class="campo" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" required>
+      <button class="boton" type="submit">Entrar</button>
+      <p id="m-pin" class="mensaje error" role="alert"></p>
+    </form>
+  </div>
+</section>
+
+<style>.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}</style>
+
+<script>
+// ── Configuración: completá con los datos de tu proyecto de Supabase ──
+const SUPABASE_URL = 'https://TU-PROYECTO.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpudm1vanZnZ2Rqdm5ocHBtc3hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ4NjAzNTEsImV4cCI6MjExMDQzNjM1MX0.UYaXm9Jywoi9K93ZkdOT5czOqf1iWXKt1PegFZEpS0M';
+const RONDAS_PRACTICA = [1];      // rondas que no suman
+const BUCKET = 'diapos';          // archivos 01.webp, 02.webp, …
+
+const $ = (id) => document.getElementById(id);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const ruta = location.hash.replace('#', '');
+const esHost = ruta === 'presentador';
+let estado = null;          // { paso, puntos_max, total_slides }
+let yo = null;              // { id, nombre }
+let verRanking = ruta === 'ranking';
+let ultimaClave = '';       // evita recargar lo mismo
+let pedidoImagen = 0;       // gana el último pedido de imagen
+const cache = new Map();    // número de diapo → object URL
+
+// ── Utilidades ──
+function posicion(e) {
+  const n = e.puntos_max, bloque = n + 3;
+  if (e.paso < 1) return { ronda: 0, enBloque: -1, pista: 0 };
+  const ronda = Math.floor((e.paso - 1) / bloque) + 1;
+  const enBloque = (e.paso - 1) % bloque;           // 0 intro, 1..n pistas, n+1 suspenso, n+2 revelación
+  const pista = enBloque >= 1 && enBloque <= n ? enBloque : 0;
+  return { ronda, enBloque, pista };
+}
+const fin = (e) => e.paso >= e.total_slides;
+const nombreArchivo = (num) => String(num).padStart(2, '0') + '.webp';
+
+function mostrar(vista) {
+  for (const v of ['v-entrada', 'v-jugador', 'v-ranking', 'v-presentador']) $(v).hidden = v !== vista;
+}
+
+async function imagen(num, contenedor) {
+  const mio = ++pedidoImagen;
+  try {
+    let url = cache.get(num);
+    if (!url) {
+      const { data, error } = await sb.storage.from(BUCKET).download(nombreArchivo(num));
+      if (error) throw error;
+      url = URL.createObjectURL(data);
+      cache.set(num, url);
+    }
+    if (mio !== pedidoImagen) return;
+    contenedor.innerHTML = '';
+    const img = new Image();
+    img.src = url;
+    img.alt = `Diapositiva ${num}`;
+    contenedor.appendChild(img);
+  } catch (err) {
+    if (mio !== pedidoImagen) return;
+    contenedor.innerHTML = '<p class="espera">No se pudo cargar la diapositiva. Reintentando…</p>';
+    setTimeout(() => { if (mio === pedidoImagen) imagen(num, contenedor); }, 2000);
+  }
+}
+
+// ── Estado compartido ──
+async function leerEstado() {
+  const { data, error } = await sb.from('estado').select('paso, puntos_max, total_slides').eq('id', 1).single();
+  if (!error && data) aplicar(data);
+}
+
+function aplicar(e) {
+  const clave = `${e.paso}/${e.puntos_max}/${e.total_slides}`;
+  const cambio = clave !== ultimaClave;
+  estado = e; ultimaClave = clave;
+  if (esHost) return pintarHost(cambio);
+  if (!yo && !verRanking) return;
+  if (fin(e) || verRanking) return pintarRanking();
+  pintarJugador(cambio);
+}
+
+// ── Jugador ──
+async function pintarJugador(cambio) {
+  mostrar('v-jugador');
+  $('t-yo').textContent = yo.nombre;
+  if (!cambio) return;
+  imagen(estado.paso + 1, $('pantalla-jugador'));
+
+  const { ronda, enBloque, pista } = posicion(estado);
+  const n = estado.puntos_max;
+  $('t-practica').hidden = !(ronda > 0 && RONDAS_PRACTICA.includes(ronda));
+  $('puntos').innerHTML = pista
+    ? Array.from({ length: n }, (_, i) => `<span class="${i + 1 < pista ? 'paso' : i + 1 === pista ? 'actual' : ''}"></span>`).join('')
+    : '';
+  $('m-respuesta').textContent = '';
+  $('m-respuesta').className = 'mensaje';
+
+  if (pista) {
+    const vale = n + 1 - pista;
+    $('t-pista').textContent = `Pista ${pista} de ${n}, vale ${vale} ${vale === 1 ? 'punto' : 'puntos'}`;
+    const { data: respondi } = await sb.rpc('ya_respondi');
+    habilitar(!respondi);
+    if (respondi) aviso('Ya respondiste en esta pista. En la próxima podés volver a intentar.');
+  } else {
+    habilitar(false);
+    $('t-pista').textContent =
+      estado.paso === 0 ? 'El juego arranca en un momento' :
+      enBloque === 0 ? 'Arranca una ronda nueva' :
+      enBloque === n + 1 ? 'Se cerraron las respuestas de esta ronda' :
+      '¿Lo tenías? Mirá cómo va el ranking';
+  }
+}
+
+function habilitar(si) {
+  $('i-respuesta').disabled = !si;
+  $('b-enviar').disabled = !si;
+  if (si) $('i-respuesta').value = '';
+}
+function aviso(texto, tipo = '') {
+  $('m-respuesta').textContent = texto;
+  $('m-respuesta').className = 'mensaje ' + tipo;
+}
+
+$('f-respuesta').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const texto = $('i-respuesta').value.trim();
+  if (!texto) return;
+  habilitar(false);
+  const { data, error } = await sb.rpc('responder', { p_texto: texto });
+  if (error) { habilitar(true); return aviso('No se pudo enviar. Revisá la conexión y probá de nuevo.', 'error'); }
+  const mensajes = {
+    enviada: [`Respuesta enviada: “${texto}”. Se sabe en la revelación.`, 'ok'],
+    ya_respondiste: ['Ya respondiste en esta pista. En la próxima podés volver a intentar.', ''],
+    cerrado: ['Las respuestas están cerradas en esta diapositiva.', 'error'],
+    vacio: ['Escribí un nombre antes de enviar.', 'error'],
+    sin_registro: ['Tu sesión se perdió. Recargá la página.', 'error'],
+  };
+  const [t, c] = mensajes[data] || ['Algo salió mal. Probá de nuevo.', 'error'];
+  aviso(t, c);
+  if (data === 'vacio') habilitar(true);
+});
+
+// ── Ranking ──
+async function cargarRanking(lista) {
+  const { data, error } = await sb.rpc('ranking');
+  if (error) { lista.innerHTML = '<li><span class="vacio">No se pudo cargar el ranking.</span></li>'; return; }
+  if (!data.length) { lista.innerHTML = '<li><span class="vacio">Todavía no hay jugadores.</span></li>'; return; }
+  lista.innerHTML = '';
+  data.forEach((fila, i) => {
+    const li = document.createElement('li');
+    if (yo && fila.nombre === yo.nombre) li.className = 'yo';
+    li.innerHTML = `<span class="pos">${i + 1}</span><span class="nom"></span><span class="pts">${fila.puntos}</span>`;
+    li.querySelector('.nom').textContent = fila.nombre;
+    lista.appendChild(li);
+  });
+}
+function pintarRanking() {
+  mostrar('v-ranking');
+  const terminado = estado && fin(estado);
+  $('t-ranking').textContent = terminado ? 'Ranking final' : 'Ranking';
+  $('b-volver').hidden = terminado || !yo;
+  cargarRanking($('tabla'));
+}
+$('b-ver-ranking').addEventListener('click', () => { verRanking = true; history.replaceState(null, '', '#ranking'); pintarRanking(); });
+$('b-volver').addEventListener('click', () => { verRanking = false; history.replaceState(null, '', location.pathname); ultimaClave = ''; aplicar(estado); });
+
+// ── Presentador ──
+let pin = sessionStorage.getItem('qe_pin') || '';
+let ocultar;
+
+async function pintarHost(cambio) {
+  mostrar('v-presentador');
+  if (!pin) { $('pin').hidden = false; $('i-pin').focus(); return; }
+  const terminado = fin(estado);
+  $('pantalla-host').hidden = terminado;
+  $('ranking-host').hidden = !terminado;
+  if (terminado) cargarRanking($('tabla-host'));
+  else if (cambio) imagen(estado.paso + 1, $('pantalla-host'));
+
+  const { ronda, pista } = posicion(estado);
+  let info = terminado ? '<b>Ranking final</b>' : `<b>Diapo ${estado.paso + 1} de ${estado.total_slides}</b>`;
+  if (pista) {
+    const { data: cuantas } = await sb.rpc('contar_respuestas', { p_pin: pin });
+    info += `<br>Ronda ${ronda}, pista ${pista} abierta: ${cuantas ?? 0} respondieron`;
+  } else if (!terminado) {
+    info += '<br>Respuestas cerradas';
+  }
+  $('t-host').innerHTML = info;
+  $('b-avanzar').textContent = estado.paso === estado.total_slides - 1 ? 'Mostrar ranking' : 'Avanzar';
+}
+
+async function mover(delta) {
+  if (!pin) return;
+  const { data, error } = await sb.rpc('mover', { p_pin: pin, p_delta: delta });
+  if (error) return pedirPin(error.message);
+  aplicar({ ...estado, paso: data });
+}
+function pedirPin(msg = '') {
+  pin = ''; sessionStorage.removeItem('qe_pin');
+  $('pin').hidden = false; $('m-pin').textContent = msg; $('i-pin').focus();
+}
+$('f-pin').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const candidato = $('i-pin').value.trim();
+  const { error } = await sb.rpc('contar_respuestas', { p_pin: candidato });
+  if (error) { $('m-pin').textContent = 'PIN incorrecto.'; return; }
+  pin = candidato; sessionStorage.setItem('qe_pin', pin);
+  $('pin').hidden = true; ultimaClave = ''; leerEstado(); despertar();
+});
+$('b-avanzar').addEventListener('click', () => mover(1));
+$('b-atras').addEventListener('click', () => mover(-1));
+$('b-pantalla').addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.();
+});
+$('b-reiniciar').addEventListener('click', async () => {
+  if (!confirm('¿Volver a la portada y borrar todas las respuestas? Los jugadores registrados se mantienen.')) return;
+  const { error } = await sb.rpc('reiniciar', { p_pin: pin, p_borrar_jugadores: false });
+  if (error) return pedirPin(error.message);
+  ultimaClave = ''; leerEstado();
+});
+function despertar() {
+  $('controles').classList.remove('oculto');
+  clearTimeout(ocultar);
+  ocultar = setTimeout(() => $('controles').classList.add('oculto'), 3000);
+}
+if (esHost) {
+  document.addEventListener('mousemove', despertar);
+  document.addEventListener('keydown', (ev) => {
+    if (ev.target.tagName === 'INPUT') return;
+    if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(ev.key)) { ev.preventDefault(); mover(1); }
+    else if (['ArrowLeft', 'PageUp', 'Backspace'].includes(ev.key)) { ev.preventDefault(); mover(-1); }
+    else if (ev.key === 'f' || ev.key === 'F') $('b-pantalla').click();
+    else return;
+    despertar();
+  });
+  setInterval(() => { if (pin && estado && posicion(estado).pista) pintarHost(false); }, 4000);
+}
+
+// ── Entrada del jugador ──
+$('f-entrada').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const nombre = $('i-nombre').value.trim();
+  const { data, error } = await sb.rpc('registrar', { p_nombre: nombre });
+  const errores = {
+    corto: 'Escribí al menos dos letras.',
+    nombre_usado: 'Ya hay alguien con ese nombre. Sumá tu apellido o una inicial.',
+    sin_sesion: 'No se pudo iniciar la sesión. Recargá la página.',
+  };
+  if (error || data !== 'ok') {
+    $('m-entrada').textContent = error ? 'No se pudo conectar. Probá de nuevo.' : errores[data];
+    $('m-entrada').className = 'mensaje error';
+    return;
+  }
+  yo = { nombre };
+  ultimaClave = '';
+  leerEstado();
+});
+
+// ── Arranque ──
+(async function iniciar() {
+  if (SUPABASE_URL.includes('TU-PROYECTO')) {
+    document.body.innerHTML = '<p style="padding:24px">Falta configurar SUPABASE_URL y SUPABASE_ANON_KEY en index.html.</p>';
+    return;
+  }
+  let { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    const { data, error } = await sb.auth.signInAnonymously();
+    if (error) {
+      document.body.innerHTML = '<p style="padding:24px">No se pudo iniciar sesión. Revisá que el acceso anónimo esté activado en Supabase.</p>';
+      return;
+    }
+    session = data.session;
+  }
+
+  if (!esHost) {
+    const { data } = await sb.from('jugadores').select('nombre').eq('id', session.user.id).maybeSingle();
+    if (data) yo = data;
+    else if (!verRanking) { mostrar('v-entrada'); $('i-nombre').focus(); }
+  }
+
+  sb.channel('estado')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'estado' }, (p) => aplicar(p.new))
+    .subscribe();
+  setInterval(leerEstado, 4000);                       // respaldo si se corta el tiempo real
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) leerEstado(); });
+  setInterval(() => { if (!$('v-ranking').hidden) cargarRanking($('tabla')); }, 5000);
+  await leerEstado();
+  if (esHost) despertar();
+})();
+</script>
+</body>
+</html>
